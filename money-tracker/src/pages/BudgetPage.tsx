@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, Target, AlertTriangle, Check } from 'lucide-react';
+import { Plus, X, Target, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { DynamicIcon } from '../components/DynamicIcon';
 import { expenseCategories } from '../data/categories';

@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useAppStore } from '../store/useAppStore';
 import { DynamicIcon } from '../components/DynamicIcon';
-import { getCategoryById, expenseCategories, incomeCategories } from '../data/categories';
+import { expenseCategories, incomeCategories } from '../data/categories';
 import { formatMoney, getMonthName } from '../utils/format';
 import type { TransactionType } from '../types';
 
@@ -131,7 +131,7 @@ export const StatsPage = () => {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => `¥${formatMoney(value)}`}
+                      formatter={(value) => `¥${formatMoney(value as number)}`}
                     />
                   </PieChart>
                 </ResponsiveContainer>

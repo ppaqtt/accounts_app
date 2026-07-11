@@ -1,9 +1,6 @@
 import * as LucideIcons from 'lucide-react';
-import { ComponentType } from 'react';
 
-const iconMap: Record<string, ComponentType<{ size?: number; color?: string; className?: string }>> = {
-  ...LucideIcons,
-};
+const iconMap = LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string; className?: string }>>;
 
 interface DynamicIconProps {
   name: string;

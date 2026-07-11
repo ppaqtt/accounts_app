@@ -44,7 +44,6 @@ export const AccountsPage = () => {
     if (!name.trim()) return;
 
     if (editingAccount) {
-      const oldBalance = editingAccount.balance;
       const newBalance = parseFloat(balance) || 0;
       await updateAccount({
         ...editingAccount,
@@ -105,7 +104,7 @@ export const AccountsPage = () => {
 
         <div className="space-y-3">
           {accounts.map((account) => {
-            const accountTxs = transactions.filter(t => t.accountId === id).length;
+            const accountTxs = transactions.filter(t => t.accountId === account.id).length;
             
             return (
               <div key={account.id} className="cute-card p-4">
@@ -237,7 +236,7 @@ export const AccountsPage = () => {
                       className={`w-10 h-10 rounded-full transition-all flex items-center justify-center ${
                         color === c ? 'ring-2 ring-offset-2' : ''
                       }`}
-                      style={{ backgroundColor: c, ringColor: c }}
+                      style={{ backgroundColor: c, ['--tw-ring-color' as never]: c }}
                     >
                       {color === c && <Check size={18} className="text-white" />}
                     </button>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Calendar, ChevronDown, Check } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { DynamicIcon } from '../components/DynamicIcon';
-import { expenseCategories, incomeCategories, getCategoryById } from '../data/categories';
+import { expenseCategories, incomeCategories } from '../data/categories';
 import { formatMoney, generateId, formatDate } from '../utils/format';
 import type { TransactionType, Transaction } from '../types';
 
@@ -81,7 +81,6 @@ export const AddTransactionModal = ({ isOpen, onClose, editTransaction }: AddTra
   };
 
   const selectedAccount = accounts.find(a => a.id === accountId);
-  const selectedCategory = getCategoryById(categoryId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={handleClose}>
