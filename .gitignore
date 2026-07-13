@@ -48,7 +48,7 @@ app/keystore/
 local.properties
 app/build/
 app/release/
-gradle-8.2-bin.zip
+gradle-*.zip
 *.apk
 *.aab
 *.ap_
