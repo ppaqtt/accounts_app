@@ -542,7 +542,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
             confirmButton = {
                 Button(
                     onClick = {
-                        allTransactions.forEach { viewModel.deleteTransaction(it) }
+                        allTransactions.value.forEach { viewModel.deleteTransaction(it) }
                         showClearDataDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
