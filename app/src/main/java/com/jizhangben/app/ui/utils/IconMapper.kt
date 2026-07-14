@@ -32,7 +32,7 @@ object IconMapper {
         "more_horiz" to Icons.Filled.MoreHoriz,
         "account_balance_wallet" to Icons.Filled.AccountBalanceWallet,
         "card_giftcard" to Icons.Filled.CardGiftcard,
-        "trending_up" to Icons.Filled.TrendingUp,
+        "trending_up" to Icons.AutoMirrored.Filled.TrendingUp,
         "work" to Icons.Filled.Work,
         "add" to Icons.Filled.Add
     )

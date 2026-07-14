@@ -138,7 +138,7 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
         transactionToDelete = -1L
     }
 
-    fun onEditClick(_transaction: Transaction) {
+    fun onEditClick(@Suppress("UNUSED_PARAMETER") _transaction: Transaction) {
         navController.navigate("add")
     }
 
@@ -540,7 +540,7 @@ fun SummaryCard(income: Double, expense: Double) {
 }
 
 @Composable
-fun DayHeader(date: Date, transactions: List<Transaction>, _categories: List<Category>) {
+fun DayHeader(date: Date, transactions: List<Transaction>, @Suppress("UNUSED_PARAMETER") _categories: List<Category>) {
     val dayIncome = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     val dayExpense = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
 

@@ -108,7 +108,7 @@ fun PasscodeScreen(
                 navigationIcon = {
                     if (mode != PasscodeMode.VERIFY) {
                         androidx.compose.material3.IconButton(onClick = onCancel) {
-                            Icon(Icons.Filled.Backspace, contentDescription = "取消")
+                            Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "取消")
                         }
                     }
                 }
@@ -217,7 +217,7 @@ fun PasscodeScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                Icons.Filled.Backspace,
+                                                Icons.AutoMirrored.Filled.Backspace,
                                                 contentDescription = "删除",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )

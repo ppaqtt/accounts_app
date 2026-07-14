@@ -39,7 +39,7 @@ import com.jizhangben.app.viewmodel.TransactionViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportScreen(
-    viewModel: TransactionViewModel,
+    @Suppress("UNUSED_PARAMETER") viewModel: TransactionViewModel,
     onBack: () -> Unit
 ) {
     var reportType by remember { mutableStateOf("weekly") }
@@ -50,7 +50,7 @@ fun ReportScreen(
                 title = { Text("收支报告") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
