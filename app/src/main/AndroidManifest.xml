@@ -46,7 +46,7 @@
             android:name=".ui.utils.RecurringTransactionReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.jizhangben.app.ACTION_CHECK_RECURRING" />
+                <action android:name="com.jizhang.xiaomeng.ACTION_CHECK_RECURRING" />
             </intent-filter>
         </receiver>
     </application>

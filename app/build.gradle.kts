@@ -5,21 +5,21 @@ plugins {
 }
 
 android {
-    namespace = "com.jizhangben.app"
+    namespace = "com.jizhang.xiaomeng"
     compileSdk = 34
     buildToolsVersion = "34.0.0"
 
     signingConfigs {
         create("release") {
             storeFile = file("keystore/release.jks")
-            storePassword = "jizhangben123"
-            keyAlias = "jizhangben"
-            keyPassword = "jizhangben123"
+            storePassword = "xiaomeng123"
+            keyAlias = "xiaomeng"
+            keyPassword = "xiaomeng123"
         }
     }
 
     defaultConfig {
-        applicationId = "com.jizhangben.app"
+        applicationId = "com.jizhang.xiaomeng"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
