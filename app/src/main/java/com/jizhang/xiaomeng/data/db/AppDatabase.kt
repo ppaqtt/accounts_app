@@ -40,7 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "jizhangben_database"
                 )
                     .addCallback(DatabaseCallback())
-                    .fallbackToDestructiveMigration(true)
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
