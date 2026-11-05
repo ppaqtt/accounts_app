@@ -56,25 +56,57 @@ import com.jizhang.xiaomeng.data.model.Transaction
 import com.jizhang.xiaomeng.data.model.TransactionType
 import com.jizhang.xiaomeng.ui.utils.DateUtils
 import com.jizhang.xiaomeng.ui.utils.IconMapper
+import com.jizhang.xiaomeng.ui.utils.LocalAppSettings
+import com.jizhang.xiaomeng.ui.utils.LocalBookManager
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
 import java.util.Calendar
 import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavController) {
-    var selectedType by remember { mutableStateOf(TransactionType.EXPENSE) }
+fun AddTransactionScreen(
+    viewModel: TransactionViewModel,
+    navController: NavController,
+    transactionId: Long = -1L
+) {
+    val bookManager = LocalBookManager.current
+    val appSettings = LocalAppSettings.current
+    val isEditing = transactionId > 0
+
+    var selectedType by remember {
+        mutableStateOf(if (appSettings.defaultExpense) TransactionType.EXPENSE else TransactionType.INCOME)
+    }
     var amount by remember { mutableDoubleStateOf(0.0) }
     var amountText by remember { mutableStateOf("0") }
     var note by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableLongStateOf(-1L) }
     var selectedDate by remember { mutableStateOf(Date()) }
+    var existingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
     val categories = viewModel.getCategoriesByType(selectedType)
         .observeAsState(initial = emptyList())
+
+    LaunchedEffect(transactionId) {
+        if (transactionId > 0) {
+            val transaction = viewModel.getTransactionById(transactionId)
+            if (transaction != null) {
+                existingTransaction = transaction
+                selectedType = transaction.type
+                amount = transaction.amount
+                amountText = if (transaction.amount % 1.0 == 0.0) {
+                    transaction.amount.toLong().toString()
+                } else {
+                    transaction.amount.toString()
+                }
+                note = transaction.note
+                selectedCategoryId = transaction.categoryId
+                selectedDate = transaction.date
+            }
+        }
+    }
 
     // 统一处理分类选择：当分类列表变化或切换类型时，自动选中第一个分类
     LaunchedEffect(categories.value, selectedType) {
@@ -135,14 +167,37 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
     fun saveTransaction() {
         if (amount <= 0 || selectedCategoryId == -1L) return
 
-        val transaction = Transaction(
-            amount = amount,
-            type = selectedType,
-            categoryId = selectedCategoryId,
-            note = note,
-            date = selectedDate
+        val existing = existingTransaction
+        if (existing != null) {
+            viewModel.updateTransaction(
+                existing.copy(
+                    amount = amount,
+                    type = selectedType,
+                    categoryId = selectedCategoryId,
+                    note = note,
+                    date = selectedDate
+                )
+            )
+            // 从详情页进入编辑时，替换掉旧的详情页，保证返回后看到最新数据。
+            val popped = navController.popBackStack("transaction_detail/{transactionId}", inclusive = true)
+            if (popped) {
+                navController.navigate("transaction_detail/$transactionId")
+            } else {
+                navController.popBackStack()
+            }
+            return
+        }
+
+        viewModel.insertTransaction(
+            Transaction(
+                amount = amount,
+                type = selectedType,
+                categoryId = selectedCategoryId,
+                note = note,
+                date = selectedDate,
+                bookId = bookManager.currentBook
+            )
         )
-        viewModel.insertTransaction(transaction)
 
         // 重置表单
         amountText = "0"
@@ -161,7 +216,7 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
             .padding(16.dp)
     ) {
         Text(
-            text = "记一笔",
+            text = if (isEditing) "编辑账单" else "记一笔",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.fillMaxWidth(),
@@ -317,7 +372,7 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
             Icon(Icons.Filled.Check, contentDescription = null)
             Spacer(modifier = Modifier.size(8.dp))
             Text(
-                text = "保存",
+                text = if (isEditing) "保存修改" else "保存",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )

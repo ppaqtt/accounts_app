@@ -1,5 +1,6 @@
 package com.jizhang.xiaomeng.ui.screens
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AutoGraph
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,6 +44,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -66,10 +70,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.jizhang.xiaomeng.BuildConfig
 import com.jizhang.xiaomeng.ui.theme.LocalThemeManager
 import com.jizhang.xiaomeng.ui.theme.ThemeMode
+import com.jizhang.xiaomeng.ui.utils.AppChangelog
 import com.jizhang.xiaomeng.ui.utils.BudgetManager
 import com.jizhang.xiaomeng.ui.utils.CsvUtils
+import com.jizhang.xiaomeng.ui.utils.LocalAppSettings
+import com.jizhang.xiaomeng.ui.utils.LocalAutoBackupManager
+import com.jizhang.xiaomeng.ui.utils.LocalBiometricHelper
 import com.jizhang.xiaomeng.ui.utils.LocalBudgetManager
 import com.jizhang.xiaomeng.ui.utils.LocalBookManager
 import com.jizhang.xiaomeng.ui.utils.LocalReminderManager
@@ -78,7 +87,10 @@ import com.jizhang.xiaomeng.ui.utils.ProvideReminderManager
 import com.jizhang.xiaomeng.ui.utils.ReminderManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -89,6 +101,11 @@ import java.util.Locale
 fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val appSettings = LocalAppSettings.current
+    val bookManager = LocalBookManager.current
+    val autoBackupManager = LocalAutoBackupManager.current
+    val biometricHelper = LocalBiometricHelper.current
+    val book = bookManager.currentBook
 
     var showAboutDialog by remember { mutableStateOf(false) }
     var showChangelogDialog by remember { mutableStateOf(false) }
@@ -145,17 +162,43 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
         openDocumentLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "application/csv", "text/plain", "*/*"))
     }
 
+    fun restartApp() {
+        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            context.startActivity(intent)
+        }
+        (context as? Activity)?.finish()
+        // 结束进程，确保恢复的数据库在下一次启动时由 Application 完成替换并重新打开。
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
+
     // 统计数据
-    val allTransactions = viewModel.allTransactions.collectAsStateWithLifecycle(initialValue = emptyList())
-    val totalCount = allTransactions.value.size
-    val totalIncome = allTransactions.value.filter { it.type.name == "INCOME" }.sumOf { it.amount }
-    val totalExpense = allTransactions.value.filter { it.type.name == "EXPENSE" }.sumOf { it.amount }
+    val bookTransactions = remember(book) {
+        viewModel.getTransactionsByBook(book)
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val totalCount = bookTransactions.value.size
+    val totalIncome = bookTransactions.value.filter { it.type.name == "INCOME" }.sumOf { it.amount }
+    val totalExpense = bookTransactions.value.filter { it.type.name == "EXPENSE" }.sumOf { it.amount }
     val totalBalance = totalIncome - totalExpense
 
     // 计算记账天数
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val uniqueDates = allTransactions.value.map { dateFormat.format(it.date) }.distinct()
+    val uniqueDates = bookTransactions.value.map { dateFormat.format(it.date) }.distinct()
     val recordDays = uniqueDates.size
+    val recordDateSet = uniqueDates.toSet()
+    val streakDays = run {
+        val calendar = Calendar.getInstance()
+        if (!recordDateSet.contains(dateFormat.format(calendar.time))) {
+            calendar.add(Calendar.DAY_OF_MONTH, -1)
+        }
+        var count = 0
+        while (recordDateSet.contains(dateFormat.format(calendar.time))) {
+            count++
+            calendar.add(Calendar.DAY_OF_MONTH, -1)
+        }
+        count
+    }
 
     Column(
         modifier = Modifier
@@ -292,6 +335,12 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = if (streakDays > 0) "🔥 已连续记账 $streakDays 天，继续保持" else "今天还没有记账，记一笔开启连续记录",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -335,6 +384,18 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 )
                 HorizontalDivider()
 
+                // 收支报告
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.BarChart, contentDescription = null, tint = Color(0xFFFF9800))
+                    },
+                    headlineContent = { Text("收支报告") },
+                    supportingContent = { Text("周报 / 月报与支出排行") },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("report") }
+                )
+                HorizontalDivider()
+
                 // 设置
                 ListItem(
                     leadingContent = {
@@ -353,7 +414,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                         Icon(Icons.Filled.Delete, contentDescription = null, tint = Color(0xFFF44336))
                     },
                     headlineContent = { Text("清除所有数据", color = Color(0xFFF44336)) },
-                    supportingContent = { Text("删除全部记账记录") },
+                    supportingContent = { Text("删除全部账本的记账记录") },
                     trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable { showClearDataDialog = true }
                 )
@@ -365,7 +426,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                         Icon(Icons.Filled.Info, contentDescription = null, tint = Color(0xFF9C27B0))
                     },
                     headlineContent = { Text("关于") },
-                    supportingContent = { Text("版本 1.0.0") },
+                    supportingContent = { Text("版本 ${BuildConfig.VERSION_NAME}") },
                     trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable { showAboutDialog = true }
                 )
@@ -417,7 +478,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "小萌记账 v1.0.0  ·  Made with ❤️",
+            text = "小萌记账 v${BuildConfig.VERSION_NAME}  ·  Made with ❤️",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
@@ -437,7 +498,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
             text = {
                 Column {
                     Text(
-                        text = "版本 1.1.0",
+                        text = "版本 ${BuildConfig.VERSION_NAME}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -454,7 +515,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "• 收支记账与分类管理\n• 月度统计与数据可视化\n• 账单编辑与删除\n• CSV账单导入导出\n• 支持微信、QQ、支付宝账单导入\n• 数据本地存储，保护隐私",
+                        text = "• 收支记账、分类与多账本\n• 账单编辑、搜索与批量删除\n• 分类预算与月度预算\n• 周报/月报、图表与连续记账天数\n• CSV 导入导出（微信/QQ/支付宝）\n• 自动备份、应用锁与记账提醒\n• 数据本地存储，保护隐私",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -472,7 +533,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Made with ❤️  ·  © 2025 小萌记账\nICP备案：正在准备",
+                        text = "Made with ❤️  ·  © 2026 小萌记账",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth(),
@@ -497,30 +558,30 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState())
                 ) {
-                    Text("v1.1.0 - 2025.07.12", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "v${AppChangelog.currentVersion} - ${AppChangelog.currentDate}",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("✨ 新增功能")
-                    Text("• 更新日志功能")
-                    Text("• 深色模式支持（跟随系统/手动切换）")
-                    Text("• 动态取色开关（Android 12+）")
-                    Text("• 账单搜索与筛选")
-                    Text("• 分类管理功能（增删改分类）")
-                    Text("• 月度预算管理与超支提醒")
-                    Text("• 年度统计视图（月/年切换）")
-                    Text("• 应用锁密码保护（6位数字）")
-                    Text("• 每日记账提醒通知")
-                    Text("• 多账本支持（日常/工作/旅行）")
+                    Text("✨ 新增与优化")
+                    AppChangelog.currentEntries.forEach { entry ->
+                        Text("• $entry")
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("v1.0.0 - 2025.06.01", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("🎉 首次发布")
-                    Text("• 收支记账与分类管理")
-                    Text("• 月度统计与数据可视化")
-                    Text("• 账单编辑与删除")
-                    Text("• CSV账单导入导出")
-                    Text("• 支持微信、QQ、支付宝账单导入")
-                    Text("• 数据本地存储，保护隐私")
+                    AppChangelog.history.forEach { history ->
+                        Text(
+                            "${history.version} - ${history.date}",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        history.entries.forEach { entry ->
+                            Text("• $entry")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
             },
             confirmButton = {
@@ -537,12 +598,12 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
             onDismissRequest = { showClearDataDialog = false },
             title = { Text("确认清除数据") },
             text = {
-                Text("此操作将删除所有记账记录，且不可恢复。确定要继续吗？")
+                Text("此操作将删除所有账本的记账记录，且不可恢复。确定要继续吗？")
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        allTransactions.value.forEach { viewModel.deleteTransaction(it) }
+                        viewModel.clearAllTransactions(book)
                         showClearDataDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
@@ -561,9 +622,10 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
     // 设置底部弹窗
     if (showSettingsSheet) {
         val sheetState = rememberModalBottomSheetState()
-        var defaultExpense by remember { mutableStateOf(true) }
-        var showAmountByDefault by remember { mutableStateOf(true) }
         var showReminderTimePicker by remember { mutableStateOf(false) }
+        var showRestoreDialog by remember { mutableStateOf(false) }
+        var backupMessage by remember { mutableStateOf<String?>(null) }
+        var pendingRestoreFile by remember { mutableStateOf<File?>(null) }
         ModalBottomSheet(
             onDismissRequest = { showSettingsSheet = false },
             sheetState = sheetState
@@ -696,6 +758,25 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                         modifier = Modifier.clickable { openPasscodeSetup() }
                     )
                     HorizontalDivider()
+
+                    ListItem(
+                        leadingContent = { Icon(Icons.Filled.Security, contentDescription = null, tint = Color(0xFF2196F3)) },
+                        headlineContent = { Text("指纹 / 面容解锁") },
+                        supportingContent = {
+                            Text(
+                                if (biometricHelper.canAuthenticate()) "开启后可用生物识别代替密码"
+                                else "当前设备不支持生物识别"
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = biometricHelper.isEnabled,
+                                enabled = biometricHelper.canAuthenticate(),
+                                onCheckedChange = { biometricHelper.isEnabled = it }
+                            )
+                        }
+                    )
+                    HorizontalDivider()
                 }
 
                 if (showPasscodeDialog) {
@@ -781,10 +862,10 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null) },
                     headlineContent = { Text("默认记账类型") },
-                    supportingContent = { Text(if (defaultExpense) "支出" else "收入") },
+                    supportingContent = { Text(if (appSettings.defaultExpense) "支出" else "收入") },
                     trailingContent = {
-                        TextButton(onClick = { defaultExpense = !defaultExpense }) {
-                            Text(if (defaultExpense) "切换为收入" else "切换为支出")
+                        TextButton(onClick = { appSettings.defaultExpense = !appSettings.defaultExpense }) {
+                            Text(if (appSettings.defaultExpense) "切换为收入" else "切换为支出")
                         }
                     }
                 )
@@ -793,11 +874,11 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.AutoGraph, contentDescription = null) },
                     headlineContent = { Text("首页显示金额") },
-                    supportingContent = { Text("在首页默认显示收支金额") },
+                    supportingContent = { Text(if (appSettings.showAmount) "当前显示收支金额" else "当前隐藏收支金额") },
                     trailingContent = {
                         Switch(
-                            checked = showAmountByDefault,
-                            onCheckedChange = { showAmountByDefault = it }
+                            checked = appSettings.showAmount,
+                            onCheckedChange = { appSettings.showAmount = it }
                         )
                     }
                 )
@@ -819,6 +900,28 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                     },
                     modifier = Modifier.clickable {
                         showReminderTimePicker = true
+                    }
+                )
+                HorizontalDivider()
+
+                ListItem(
+                    leadingContent = { Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null, tint = Color(0xFF4CAF50)) },
+                    headlineContent = { Text("分类预算") },
+                    supportingContent = { Text("为每个支出分类设置月度预算") },
+                    modifier = Modifier.clickable {
+                        showSettingsSheet = false
+                        navController.navigate("category_budget")
+                    }
+                )
+                HorizontalDivider()
+
+                ListItem(
+                    leadingContent = { Icon(Icons.Filled.Refresh, contentDescription = null, tint = Color(0xFF2196F3)) },
+                    headlineContent = { Text("周期性账单") },
+                    supportingContent = { Text("管理每月自动记账") },
+                    modifier = Modifier.clickable {
+                        showSettingsSheet = false
+                        navController.navigate("recurring_transactions")
                     }
                 )
                 HorizontalDivider()
@@ -961,7 +1064,6 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val bookManager = LocalBookManager.current
                 var showBookManager by remember { mutableStateOf(false) }
 
                 ListItem(
@@ -975,7 +1077,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.Settings, contentDescription = null) },
                     headlineContent = { Text("管理账本") },
-                    supportingContent = { Text("添加、编辑、删除账本") },
+                    supportingContent = { Text("添加、选择或重命名账本") },
                     modifier = Modifier.clickable { showBookManager = true }
                 )
 
@@ -1013,12 +1115,19 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                                     ListItem(
                                         headlineContent = { Text(book) },
                                         trailingContent = {
-                                            Row {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
                                                 if (bookManager.currentBook == book) {
                                                     Icon(
                                                         Icons.Filled.Star,
                                                         contentDescription = null,
                                                         tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                                IconButton(onClick = { openRenameBook(book) }) {
+                                                    Icon(
+                                                        Icons.Filled.Edit,
+                                                        contentDescription = "重命名账本",
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             }
@@ -1072,7 +1181,11 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                                             bookError = "账本已存在或名称为空"
                                         }
                                     } else {
-                                        if (bookManager.renameBook(editingBook, newBookName)) {
+                                        val oldName = editingBook
+                                        if (oldName == newBookName) {
+                                            showBookManager = false
+                                        } else if (bookManager.renameBook(oldName, newBookName)) {
+                                            viewModel.renameBookTransactions(oldName, newBookName)
                                             showBookManager = false
                                         } else {
                                             bookError = "名称无效或已存在"
@@ -1135,6 +1248,53 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                         startImport()
                     }
                 )
+                HorizontalDivider()
+
+                ListItem(
+                    leadingContent = { Icon(Icons.Filled.Refresh, contentDescription = null, tint = Color(0xFF4CAF50)) },
+                    headlineContent = { Text("自动备份") },
+                    supportingContent = {
+                        Text(
+                            if (autoBackupManager.isEnabled) {
+                                "每天自动备份一次 · 上次 ${autoBackupManager.lastBackupTime ?: "尚未备份"}"
+                            } else {
+                                "未开启"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = autoBackupManager.isEnabled,
+                            onCheckedChange = { autoBackupManager.isEnabled = it }
+                        )
+                    }
+                )
+                HorizontalDivider()
+
+                ListItem(
+                    leadingContent = { Icon(Icons.Filled.Upload, contentDescription = null, tint = Color(0xFF2196F3)) },
+                    headlineContent = { Text("立即备份") },
+                    supportingContent = { Text("生成本地数据库快照，可随时恢复") },
+                    modifier = Modifier.clickable {
+                        coroutineScope.launch {
+                            showLoadingDialog = true
+                            val path = viewModel.backupDatabase()
+                            showLoadingDialog = false
+                            backupMessage = if (path != null) "备份成功" else "备份失败，请稍后重试"
+                        }
+                    }
+                )
+                HorizontalDivider()
+
+                ListItem(
+                    leadingContent = { Icon(Icons.Filled.Download, contentDescription = null, tint = Color(0xFF9C27B0)) },
+                    headlineContent = { Text("从本地备份恢复") },
+                    supportingContent = {
+                        val count = autoBackupManager.getBackupList().size
+                        Text(if (count > 0) "共 $count 个本地备份" else "暂无本地备份")
+                    },
+                    modifier = Modifier.clickable { showRestoreDialog = true }
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1150,7 +1310,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.Star, contentDescription = null) },
                     headlineContent = { Text("当前版本") },
-                    supportingContent = { Text("v1.1.0") }
+                    supportingContent = { Text("v${BuildConfig.VERSION_NAME}") }
                 )
                 HorizontalDivider()
 
@@ -1176,6 +1336,84 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if (showRestoreDialog) {
+                val backups = autoBackupManager.getBackupList()
+                AlertDialog(
+                    onDismissRequest = { showRestoreDialog = false },
+                    title = { Text("选择本地备份") },
+                    text = {
+                        if (backups.isEmpty()) {
+                            Text("暂无本地备份，可先点击“立即备份”。")
+                        } else {
+                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                backups.forEach { file ->
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(
+                                                SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                                                    .format(Date(file.lastModified()))
+                                            )
+                                        },
+                                        supportingContent = { Text("${file.name} · ${file.length() / 1024} KB") },
+                                        trailingContent = { Text("恢复", color = MaterialTheme.colorScheme.primary) },
+                                        modifier = Modifier.clickable {
+                                            pendingRestoreFile = file
+                                            showRestoreDialog = false
+                                        }
+                                    )
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showRestoreDialog = false }) { Text("关闭") }
+                    }
+                )
+            }
+
+            if (pendingRestoreFile != null) {
+                AlertDialog(
+                    onDismissRequest = { pendingRestoreFile = null },
+                    title = { Text("确认恢复备份") },
+                    text = { Text("恢复后将覆盖当前全部账单数据，应用会自动重启。确定继续吗？") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val file = pendingRestoreFile
+                            pendingRestoreFile = null
+                            if (file != null) {
+                                coroutineScope.launch {
+                                    showLoadingDialog = true
+                                    val success = viewModel.restoreDatabase(file)
+                                    if (success) {
+                                        restartApp()
+                                    } else {
+                                        showLoadingDialog = false
+                                        backupMessage = "恢复失败，请检查备份文件"
+                                    }
+                                }
+                            }
+                        }) {
+                            Text("恢复")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { pendingRestoreFile = null }) { Text("取消") }
+                    }
+                )
+            }
+
+            if (backupMessage != null) {
+                AlertDialog(
+                    onDismissRequest = { backupMessage = null },
+                    title = { Text("备份提示") },
+                    text = { Text(backupMessage!!) },
+                    confirmButton = {
+                        TextButton(onClick = { backupMessage = null }) { Text("确定") }
+                    }
+                )
             }
         }
     }
@@ -1227,7 +1465,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
             },
             title = { Text("确认导入") },
             text = {
-                Text("导入的账单将追加到现有数据中，确定要继续吗？")
+                Text("导入的账单将追加到当前账本「$book」中，重复账单会自动跳过。确定要继续吗？")
             },
             confirmButton = {
                 Button(
@@ -1240,7 +1478,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                             coroutineScope.launch {
                                 try {
                                     context.contentResolver.openInputStream(it)?.use { inputStream ->
-                                        importResult = viewModel.importFromCsv(inputStream)
+                                        importResult = viewModel.importFromCsv(inputStream, book)
                                     }
                                     showLoadingDialog = false
                                     showImportResultDialog = true
@@ -1297,6 +1535,13 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                         "失败行数：${result.failedCount} 条",
                         color = if (result.failedCount > 0) Color(0xFFF44336) else Color(0xFF9E9E9E)
                     )
+                    if (result.duplicateCount > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "跳过重复：${result.duplicateCount} 条",
+                            color = Color(0xFFFF9800)
+                        )
+                    }
                 }
             },
             confirmButton = {

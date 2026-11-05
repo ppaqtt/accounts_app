@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,7 @@ import com.jizhang.xiaomeng.data.model.Category
 import com.jizhang.xiaomeng.data.model.TransactionType
 import com.jizhang.xiaomeng.ui.utils.IconMapper
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +63,8 @@ fun CategoryManageScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     val expenseCategories = viewModel.getCategoriesByType(TransactionType.EXPENSE).observeAsState(initial = emptyList())
     val incomeCategories = viewModel.getCategoriesByType(TransactionType.INCOME).observeAsState(initial = emptyList())
@@ -203,11 +207,21 @@ fun CategoryManageScreen(
         AlertDialog(
             onDismissRequest = { categoryToDelete = null },
             title = { Text("确认删除") },
-            text = { Text("确定要删除分类「${categoryToDelete!!.name}」吗？\n注意：已有账单使用该分类时将无法删除。") },
+            text = {
+                Text("确定要删除分类「${categoryToDelete!!.name}」吗？\n该分类下的账单会自动转移到同类型的「其他」分类，不会丢失。")
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    categoryToDelete?.let { viewModel.deleteCategory(it) }
+                    val target = categoryToDelete
                     categoryToDelete = null
+                    if (target != null) {
+                        coroutineScope.launch {
+                            val success = viewModel.deleteCategorySafely(target)
+                            if (!success) {
+                                deleteError = "删除失败，请稍后重试"
+                            }
+                        }
+                    }
                 }) {
                     Text("删除", color = Color(0xFFF44336))
                 }
@@ -216,6 +230,17 @@ fun CategoryManageScreen(
                 TextButton(onClick = { categoryToDelete = null }) {
                     Text("取消")
                 }
+            }
+        )
+    }
+
+    if (deleteError != null) {
+        AlertDialog(
+            onDismissRequest = { deleteError = null },
+            title = { Text("操作失败") },
+            text = { Text(deleteError!!) },
+            confirmButton = {
+                TextButton(onClick = { deleteError = null }) { Text("确定") }
             }
         )
     }

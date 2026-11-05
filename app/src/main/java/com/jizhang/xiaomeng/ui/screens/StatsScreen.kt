@@ -54,7 +54,10 @@ import com.jizhang.xiaomeng.data.model.Category
 import com.jizhang.xiaomeng.data.model.TransactionType
 import com.jizhang.xiaomeng.ui.utils.DateUtils
 import com.jizhang.xiaomeng.ui.utils.IconMapper
+import com.jizhang.xiaomeng.ui.utils.LocalBookManager
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
+import java.util.Calendar
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,46 +68,74 @@ fun StatsScreen(viewModel: TransactionViewModel) {
     var isYearView by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("分类", "图表", "对比")
+    val book = LocalBookManager.current.currentBook
 
     val income = if (isYearView) {
-        viewModel.getTotalIncomeByYear(currentYear).observeAsState(initial = 0.0)
+        remember(book, currentYear) { viewModel.getTotalIncomeByBookAndYear(book, currentYear) }
+            .observeAsState(initial = 0.0)
     } else {
-        viewModel.getTotalIncomeByMonth(currentYear, currentMonth).observeAsState(initial = 0.0)
+        remember(book, currentYear, currentMonth) {
+            viewModel.getTotalIncomeByBookAndMonth(book, currentYear, currentMonth)
+        }.observeAsState(initial = 0.0)
     }
     val expense = if (isYearView) {
-        viewModel.getTotalExpenseByYear(currentYear).observeAsState(initial = 0.0)
+        remember(book, currentYear) { viewModel.getTotalExpenseByBookAndYear(book, currentYear) }
+            .observeAsState(initial = 0.0)
     } else {
-        viewModel.getTotalExpenseByMonth(currentYear, currentMonth).observeAsState(initial = 0.0)
+        remember(book, currentYear, currentMonth) {
+            viewModel.getTotalExpenseByBookAndMonth(book, currentYear, currentMonth)
+        }.observeAsState(initial = 0.0)
     }
     val categories = viewModel.allCategories.collectAsStateWithLifecycle(initialValue = emptyList())
+    val yearTransactions = remember(book, currentYear) {
+        viewModel.getTransactionsByBookAndYear(book, currentYear)
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
 
     val categorySummary = if (selectedType == TransactionType.EXPENSE) {
         if (isYearView) {
-            viewModel.getExpenseCategorySummaryByYear(currentYear).observeAsState(initial = emptyList())
+            remember(book, currentYear) { viewModel.getExpenseCategorySummaryByBookAndYear(book, currentYear) }
+                .observeAsState(initial = emptyList())
         } else {
-            viewModel.getExpenseCategorySummary(currentYear, currentMonth).observeAsState(initial = emptyList())
+            remember(book, currentYear, currentMonth) {
+                viewModel.getExpenseCategorySummary(book, currentYear, currentMonth)
+            }.observeAsState(initial = emptyList())
         }
     } else {
         if (isYearView) {
-            viewModel.getIncomeCategorySummaryByYear(currentYear).observeAsState(initial = emptyList())
+            remember(book, currentYear) { viewModel.getIncomeCategorySummaryByBookAndYear(book, currentYear) }
+                .observeAsState(initial = emptyList())
         } else {
-            viewModel.getIncomeCategorySummary(currentYear, currentMonth).observeAsState(initial = emptyList())
+            remember(book, currentYear, currentMonth) {
+                viewModel.getIncomeCategorySummary(book, currentYear, currentMonth)
+            }.observeAsState(initial = emptyList())
         }
     }
 
     // 上月数据（用于对比）
     val prevMonth = if (currentMonth == 0) 11 else currentMonth - 1
     val prevYear = if (currentMonth == 0) currentYear - 1 else currentYear
-    val prevMonthIncome = viewModel.getTotalIncomeByMonth(prevYear, prevMonth).observeAsState(initial = 0.0)
-    val prevMonthExpense = viewModel.getTotalExpenseByMonth(prevYear, prevMonth).observeAsState(initial = 0.0)
+    val prevMonthIncome = remember(book, prevYear, prevMonth) {
+        viewModel.getTotalIncomeByBookAndMonth(book, prevYear, prevMonth)
+    }.observeAsState(initial = 0.0)
+    val prevMonthExpense = remember(book, prevYear, prevMonth) {
+        viewModel.getTotalExpenseByBookAndMonth(book, prevYear, prevMonth)
+    }.observeAsState(initial = 0.0)
 
     // 去年数据（用于对比）
-    val lastYearIncome = viewModel.getTotalIncomeByYear(currentYear - 1).observeAsState(initial = 0.0)
-    val lastYearExpense = viewModel.getTotalExpenseByYear(currentYear - 1).observeAsState(initial = 0.0)
+    val lastYearIncome = remember(book, currentYear) {
+        viewModel.getTotalIncomeByBookAndYear(book, currentYear - 1)
+    }.observeAsState(initial = 0.0)
+    val lastYearExpense = remember(book, currentYear) {
+        viewModel.getTotalExpenseByBookAndYear(book, currentYear - 1)
+    }.observeAsState(initial = 0.0)
 
     // 今年数据（用于对比）
-    val thisYearIncome = viewModel.getTotalIncomeByYear(currentYear).observeAsState(initial = 0.0)
-    val thisYearExpense = viewModel.getTotalExpenseByYear(currentYear).observeAsState(initial = 0.0)
+    val thisYearIncome = remember(book, currentYear) {
+        viewModel.getTotalIncomeByBookAndYear(book, currentYear)
+    }.observeAsState(initial = 0.0)
+    val thisYearExpense = remember(book, currentYear) {
+        viewModel.getTotalExpenseByBookAndYear(book, currentYear)
+    }.observeAsState(initial = 0.0)
 
     val total = if (selectedType == TransactionType.EXPENSE) expense.value ?: 0.0 else income.value ?: 0.0
 
@@ -329,8 +360,11 @@ fun StatsScreen(viewModel: TransactionViewModel) {
 
                         val monthLabels = listOf("1月", "2月", "3月", "4月", "5月", "6月",
                             "7月", "8月", "9月", "10月", "11月", "12月")
-                        val barData = monthLabels.mapIndexed { _, label ->
-                            label to 0f // 占位，实际应从数据库查询月度数据
+                        val barData = monthLabels.mapIndexed { index, label ->
+                            val monthTotal = yearTransactions.value
+                                .filter { it.type == selectedType && monthOf(it.date) == index }
+                                .sumOf { it.amount }
+                            label to monthTotal.toFloat()
                         }
                         val barColor = if (selectedType == TransactionType.EXPENSE)
                             Color(0xFFF44336) else Color(0xFF4CAF50)
@@ -376,6 +410,12 @@ fun StatsScreen(viewModel: TransactionViewModel) {
             }
         }
     }
+}
+
+private fun monthOf(date: Date): Int {
+    val calendar = Calendar.getInstance()
+    calendar.time = date
+    return calendar.get(Calendar.MONTH)
 }
 
 @Composable

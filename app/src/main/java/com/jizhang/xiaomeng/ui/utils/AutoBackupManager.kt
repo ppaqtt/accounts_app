@@ -12,9 +12,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class AutoBackupManager(context: Context) {
+class AutoBackupManager(private val context: Context) {
     private val prefs = context.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
     private val backupDir = File(context.filesDir, "auto_backups")
+    private val pendingRestoreFile = File(context.filesDir, "restore_pending.db")
 
     val isEnabledState = mutableStateOf(prefs.getBoolean("auto_backup_enabled", false))
     var isEnabled: Boolean
@@ -32,6 +33,18 @@ class AutoBackupManager(context: Context) {
             prefs.edit().putString("last_backup_time", value).apply()
         }
 
+    private var lastBackupDate: String?
+        get() = prefs.getString("last_backup_date", null)
+        set(value) {
+            prefs.edit().putString("last_backup_date", value).apply()
+        }
+
+    fun shouldBackupToday(): Boolean {
+        if (!isEnabled) return false
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        return lastBackupDate != today
+    }
+
     init {
         if (!backupDir.exists()) backupDir.mkdirs()
     }
@@ -47,6 +60,7 @@ class AutoBackupManager(context: Context) {
             backups?.drop(5)?.forEach { it.delete() }
 
             lastBackupTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            lastBackupDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             backupFile.absolutePath
         } catch (e: Exception) {
             null
@@ -59,7 +73,39 @@ class AutoBackupManager(context: Context) {
 
     fun restoreFromBackup(backupFile: File, targetDb: File): Boolean {
         return try {
+            // 清理旧的 WAL/SHM，避免恢复后读到未提交的旧数据。
+            File(targetDb.path + "-wal").delete()
+            File(targetDb.path + "-shm").delete()
+            File(targetDb.path + "-journal").delete()
             backupFile.copyTo(targetDb, overwrite = true)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun latestBackup(): File? = getBackupList().firstOrNull()
+
+    /**
+     * 恢复时不直接覆盖正在使用的数据库，而是先暂存，应用重启前由 Application 完成替换。
+     */
+    fun stageRestore(backupFile: File): Boolean {
+        return try {
+            backupFile.copyTo(pendingRestoreFile, overwrite = true)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun applyPendingRestoreIfNeeded(targetDb: File): Boolean {
+        if (!pendingRestoreFile.exists()) return false
+        return try {
+            File(targetDb.path + "-wal").delete()
+            File(targetDb.path + "-shm").delete()
+            File(targetDb.path + "-journal").delete()
+            pendingRestoreFile.copyTo(targetDb, overwrite = true)
+            pendingRestoreFile.delete()
             true
         } catch (e: Exception) {
             false

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ fun TransactionDetailScreen(
         transaction = tx
         if (tx != null) {
             noteText = tx.note
+            tagsText = tx.tags
             val cat = viewModel.getCategoryById(tx.categoryId)
             if (cat != null) {
                 categoryName = cat.name
@@ -58,6 +60,13 @@ fun TransactionDetailScreen(
                 },
                 actions = {
                     if (tx != null) {
+                        IconButton(onClick = { navController.navigate("edit/${tx.id}") }) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "编辑",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(
                                 Icons.Filled.Delete,
@@ -221,7 +230,7 @@ fun TransactionDetailScreen(
                 // 保存按钮
                 Button(
                     onClick = {
-                        val updatedTx = tx.copy(note = noteText)
+                        val updatedTx = tx.copy(note = noteText, tags = tagsText.trim())
                         viewModel.updateTransaction(updatedTx)
                         navController.popBackStack()
                     },

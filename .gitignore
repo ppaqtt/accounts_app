@@ -47,6 +47,7 @@ app/keystore/
 # ===== Android =====
 local.properties
 app/build/
+/build/
 app/release/
 gradle-*.zip
 *.apk

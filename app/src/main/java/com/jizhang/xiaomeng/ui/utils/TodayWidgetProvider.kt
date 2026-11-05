@@ -3,6 +3,7 @@ package com.jizhang.xiaomeng.ui.utils
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
@@ -70,6 +71,15 @@ class TodayWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_title, mainPendingIntent)
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+
+        fun refresh(context: Context) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val componentName = ComponentName(context, TodayWidgetProvider::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+            appWidgetIds.forEach { appWidgetId ->
+                updateAppWidget(context, appWidgetManager, appWidgetId)
+            }
         }
 
         fun saveTodayData(context: Context, income: Double, expense: Double) {

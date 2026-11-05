@@ -54,6 +54,10 @@ class ReminderManager(private val context: Context) {
             if (isEnabled) scheduleReminder()
         }
 
+    fun rescheduleIfEnabled() {
+        if (isEnabled) scheduleReminder()
+    }
+
     private fun scheduleReminder() {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -109,6 +113,14 @@ fun ProvideReminderManager(content: @Composable () -> Unit) {
     val reminderManager = remember { ReminderManager(context) }
     CompositionLocalProvider(LocalReminderManager provides reminderManager) {
         content()
+    }
+}
+
+class ReminderBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
+            ReminderManager(context).rescheduleIfEnabled()
+        }
     }
 }
 

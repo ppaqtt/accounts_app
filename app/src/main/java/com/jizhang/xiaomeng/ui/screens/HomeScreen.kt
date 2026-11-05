@@ -47,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -69,6 +70,7 @@ import com.jizhang.xiaomeng.data.model.Transaction
 import com.jizhang.xiaomeng.data.model.TransactionType
 import com.jizhang.xiaomeng.ui.utils.DateUtils
 import com.jizhang.xiaomeng.ui.utils.IconMapper
+import com.jizhang.xiaomeng.ui.utils.LocalAppSettings
 import com.jizhang.xiaomeng.ui.utils.LocalBookManager
 import com.jizhang.xiaomeng.ui.utils.LocalBudgetManager
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
@@ -94,17 +96,38 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var showBatchDeleteDialog by remember { mutableStateOf(false) }
 
-    val monthTransactions = viewModel.getTransactionsByMonth(currentYear, currentMonth).observeAsState(initial = emptyList())
-    val monthIncome = viewModel.getTotalIncomeByMonth(currentYear, currentMonth).observeAsState(initial = 0.0)
-    val monthExpense = viewModel.getTotalExpenseByMonth(currentYear, currentMonth).observeAsState(initial = 0.0)
+    val bookManager = LocalBookManager.current
+    val appSettings = LocalAppSettings.current
+    val book = bookManager.currentBook
+
+    val monthTransactions = remember(book, currentYear, currentMonth) {
+        viewModel.getTransactionsByBookAndMonth(book, currentYear, currentMonth)
+    }.observeAsState(initial = emptyList())
+    val monthIncome = remember(book, currentYear, currentMonth) {
+        viewModel.getTotalIncomeByBookAndMonth(book, currentYear, currentMonth)
+    }.observeAsState(initial = 0.0)
+    val monthExpense = remember(book, currentYear, currentMonth) {
+        viewModel.getTotalExpenseByBookAndMonth(book, currentYear, currentMonth)
+    }.observeAsState(initial = 0.0)
+    val bookTransactions = remember(book) {
+        viewModel.getTransactionsByBook(book)
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
     val categoryList = viewModel.allCategories.collectAsStateWithLifecycle(initialValue = emptyList())
 
-    val filteredTransactions = remember(monthTransactions.value, searchQuery, showFilter, filterType, minAmount, maxAmount) {
-        var result = monthTransactions.value
+    LaunchedEffect(book) {
+        viewModel.refreshWidgetForBook(book)
+    }
+
+    // 搜索时跨月份查找当前账本的全部账单，未搜索时只展示当前月份。
+    val baseTransactions = if (searchQuery.isNotBlank()) bookTransactions.value else monthTransactions.value
+
+    val filteredTransactions = remember(baseTransactions, searchQuery, showFilter, filterType, minAmount, maxAmount) {
+        var result = baseTransactions
         if (searchQuery.isNotBlank()) {
             val query = searchQuery.lowercase()
             result = result.filter { transaction ->
                 transaction.note.lowercase().contains(query) ||
+                        transaction.tags.lowercase().contains(query) ||
                         categoryList.value.find { it.id == transaction.categoryId }?.name?.lowercase()?.contains(query) == true
             }
         }
@@ -131,15 +154,15 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
 
     fun confirmDelete() {
         if (transactionToDelete != -1L) {
-            val transaction = monthTransactions.value.find { it.id == transactionToDelete }
+            val transaction = baseTransactions.find { it.id == transactionToDelete }
             transaction?.let { viewModel.deleteTransaction(it) }
         }
         showDeleteDialog = false
         transactionToDelete = -1L
     }
 
-    fun onEditClick(@Suppress("UNUSED_PARAMETER") _transaction: Transaction) {
-        navController.navigate("add")
+    fun onEditClick(transaction: Transaction) {
+        navController.navigate("edit/${transaction.id}")
     }
 
     Column(
@@ -147,7 +170,6 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        val bookManager = LocalBookManager.current
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -186,7 +208,8 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
 
         SummaryCard(
             income = monthIncome.value ?: 0.0,
-            expense = monthExpense.value ?: 0.0
+            expense = monthExpense.value ?: 0.0,
+            showAmount = appSettings.showAmount
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -255,6 +278,12 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
+            Text(
+                text = "搜索范围为当前账本「$book」的全部账单",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
         if (showFilter) {
@@ -318,7 +347,12 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
             ) {
                 groupedTransactions.forEach { (date, dayTransactions) ->
                     item {
-                        DayHeader(date = date, transactions = dayTransactions, _categories = categoryList.value)
+                        DayHeader(
+                            date = date,
+                            transactions = dayTransactions,
+                            _categories = categoryList.value,
+                            showAmount = appSettings.showAmount
+                        )
                     }
                     items(dayTransactions) { transaction ->
                         val category = categoryList.value.find { it.id == transaction.categoryId }
@@ -329,6 +363,10 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
                             isSelected = selectedIds.contains(transaction.id),
                             onEditClick = { onEditClick(transaction) },
                             onDeleteClick = { onDeleteClick(transaction.id) },
+                            onItemClick = {
+                                navController.navigate("transaction_detail/${transaction.id}")
+                            },
+                            showAmount = appSettings.showAmount,
                             onSelect = {
                                 selectedIds = if (selectedIds.contains(transaction.id)) {
                                     selectedIds - transaction.id
@@ -374,7 +412,7 @@ fun HomeScreen(viewModel: TransactionViewModel, navController: NavController) {
             text = { Text("确定要删除选中的 ${selectedIds.size} 条记录吗？") },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.deleteTransactionsByIds(selectedIds.toList())
+                    viewModel.deleteTransactionsByIds(selectedIds.toList(), book)
                     selectedIds = emptySet()
                     multiSelectMode = false
                     showBatchDeleteDialog = false
@@ -447,8 +485,10 @@ fun MonthSelector(year: Int, month: Int, onPrevious: () -> Unit, onNext: () -> U
 }
 
 @Composable
-fun SummaryCard(income: Double, expense: Double) {
+fun SummaryCard(income: Double, expense: Double, showAmount: Boolean = true) {
     val balance = income - expense
+    fun formatAmount(value: Double): String =
+        if (showAmount) "¥${String.format("%.2f", value)}" else "****"
     val budgetManager = LocalBudgetManager.current
     val budget = budgetManager.monthlyBudget
     val (budgetProgress, isOverBudget) = budgetManager.getBudgetProgress(expense)
@@ -471,7 +511,7 @@ fun SummaryCard(income: Double, expense: Double) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Text(
-                text = "¥${String.format("%.2f", balance)}",
+                text = formatAmount(balance),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -489,7 +529,7 @@ fun SummaryCard(income: Double, expense: Double) {
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = "¥${String.format("%.2f", income)}",
+                        text = formatAmount(income),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF4CAF50)
@@ -502,7 +542,7 @@ fun SummaryCard(income: Double, expense: Double) {
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = "¥${String.format("%.2f", expense)}",
+                        text = formatAmount(expense),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFFF44336)
@@ -540,7 +580,12 @@ fun SummaryCard(income: Double, expense: Double) {
 }
 
 @Composable
-fun DayHeader(date: Date, transactions: List<Transaction>, @Suppress("UNUSED_PARAMETER") _categories: List<Category>) {
+fun DayHeader(
+    date: Date,
+    transactions: List<Transaction>,
+    @Suppress("UNUSED_PARAMETER") _categories: List<Category>,
+    showAmount: Boolean = true
+) {
     val dayIncome = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     val dayExpense = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
 
@@ -570,7 +615,7 @@ fun DayHeader(date: Date, transactions: List<Transaction>, @Suppress("UNUSED_PAR
             Row {
                 if (dayIncome > 0) {
                     Text(
-                        text = "收 ¥${String.format("%.2f", dayIncome)}",
+                        text = if (showAmount) "收 ¥${String.format("%.2f", dayIncome)}" else "收 ****",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF4CAF50)
                     )
@@ -578,7 +623,7 @@ fun DayHeader(date: Date, transactions: List<Transaction>, @Suppress("UNUSED_PAR
                 }
                 if (dayExpense > 0) {
                     Text(
-                        text = "支 ¥${String.format("%.2f", dayExpense)}",
+                        text = if (showAmount) "支 ¥${String.format("%.2f", dayExpense)}" else "支 ****",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFFF44336)
                     )
@@ -598,8 +643,10 @@ fun TransactionItem(
     isSelected: Boolean = false,
     onEditClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
+    onItemClick: () -> Unit = {},
     onSelect: () -> Unit = {},
-    onLongClick: () -> Unit = {}
+    onLongClick: () -> Unit = {},
+    showAmount: Boolean = true
 ) {
     Row(
         modifier = Modifier
@@ -613,7 +660,7 @@ fun TransactionItem(
                     )
                 } else {
                     Modifier.combinedClickable(
-                        onClick = {},
+                        onClick = onItemClick,
                         onLongClick = onLongClick
                     )
                 }
@@ -703,8 +750,12 @@ fun TransactionItem(
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = (if (transaction.type == TransactionType.INCOME) "+" else "-") +
-                    "¥${String.format("%.2f", transaction.amount)}",
+            text = if (showAmount) {
+                (if (transaction.type == TransactionType.INCOME) "+" else "-") +
+                    "¥${String.format("%.2f", transaction.amount)}"
+            } else {
+                "****"
+            },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = if (transaction.type == TransactionType.INCOME)

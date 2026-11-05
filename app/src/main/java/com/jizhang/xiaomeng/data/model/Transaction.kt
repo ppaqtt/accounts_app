@@ -13,10 +13,10 @@ import java.util.Date
             entity = Category::class,
             parentColumns = ["id"],
             childColumns = ["categoryId"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.RESTRICT
         )
     ],
-    indices = [Index("categoryId")]
+    indices = [Index("categoryId"), Index("bookId")]
 )
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -26,5 +26,6 @@ data class Transaction(
     val note: String = "",
     val tags: String = "", // 逗号分隔的标签，如 "工作,餐饮"
     val date: Date,
-    val createdAt: Date = Date()
+    val createdAt: Date = Date(),
+    val bookId: String = "日常账本"
 )

@@ -7,6 +7,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import java.security.MessageDigest
 
 class SecurityManager(context: Context) {
     private val prefs = context.getSharedPreferences("security_prefs", Context.MODE_PRIVATE)
@@ -24,15 +25,33 @@ class SecurityManager(context: Context) {
         get() = !passcode.isNullOrEmpty()
 
     fun verifyPasscode(input: String): Boolean {
-        return input == passcode
+        val stored = passcode ?: return false
+        if (stored.startsWith(HASH_PREFIX)) {
+            return stored == HASH_PREFIX + hash(input)
+        }
+        // 兼容旧版本明文密码，验证成功后立即升级为哈希存储。
+        val matched = stored == input
+        if (matched) {
+            savePasscode(input)
+        }
+        return matched
     }
 
     fun savePasscode(newPasscode: String) {
-        passcode = newPasscode
+        passcode = HASH_PREFIX + hash(newPasscode)
+    }
+
+    private fun hash(value: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
     }
 
     fun removePasscode() {
         passcode = null
+    }
+
+    private companion object {
+        const val HASH_PREFIX = "sha256:"
     }
 }
 
