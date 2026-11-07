@@ -437,7 +437,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
             text = {
                 Column {
                     Text(
-                        text = "版本 1.1.0",
+                        text = "版本 1.2.0",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -497,7 +497,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState())
                 ) {
-                    Text("v1.1.0 - 2025.07.12", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("v1.2.0 - 2026.11.07", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text("✨ 新增功能")
                     Text("• 更新日志功能")
@@ -1150,7 +1150,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.Star, contentDescription = null) },
                     headlineContent = { Text("当前版本") },
-                    supportingContent = { Text("v1.1.0") }
+                    supportingContent = { Text("v1.2.0") }
                 )
                 HorizontalDivider()
 
