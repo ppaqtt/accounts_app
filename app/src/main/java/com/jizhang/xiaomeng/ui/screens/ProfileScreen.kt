@@ -365,7 +365,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                         Icon(Icons.Filled.Info, contentDescription = null, tint = Color(0xFF9C27B0))
                     },
                     headlineContent = { Text("关于") },
-                    supportingContent = { Text("版本 1.0.0") },
+                    supportingContent = { Text("版本 1.0.1") },
                     trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable { showAboutDialog = true }
                 )
@@ -417,7 +417,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "小萌记账 v1.0.0  ·  Made with ❤️",
+            text = "小萌记账 v1.0.1  ·  Made with ❤️",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
@@ -512,7 +512,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                     Text("• 多账本支持（日常/工作/旅行）")
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("v1.0.0 - 2025.06.01", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("v1.0.1 - 2026.11.07", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text("🎉 首次发布")
                     Text("• 收支记账与分类管理")
