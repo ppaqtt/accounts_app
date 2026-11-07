@@ -472,7 +472,7 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Made with ❤️  ·  © 2025 小萌记账\nICP备案：正在准备",
+                        text = "Made with ❤️  ·  © 2025 小萌记账\nICP备案：浙ICP备2025194709号-8A",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth(),
