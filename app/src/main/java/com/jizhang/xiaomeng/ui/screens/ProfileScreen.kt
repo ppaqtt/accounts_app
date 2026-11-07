@@ -1176,6 +1176,17 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "ICP备案：浙ICP备2025194709号-8A",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
