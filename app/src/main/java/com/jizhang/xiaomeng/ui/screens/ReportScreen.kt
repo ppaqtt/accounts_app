@@ -161,7 +161,7 @@ fun ReportScreen(viewModel: TransactionViewModel, onBack: () -> Unit) {
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-            SummaryCard(income = data.income, expense = data.expense)
+            ReportSummaryCard(income = data.income, expense = data.expense)
 
             Spacer(modifier = Modifier.height(16.dp))
             ComparisonCard(data = data)
@@ -243,7 +243,7 @@ private fun MonthSwitcher(
 }
 
 @Composable
-private fun SummaryCard(income: Double, expense: Double) {
+private fun ReportSummaryCard(income: Double, expense: Double) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),

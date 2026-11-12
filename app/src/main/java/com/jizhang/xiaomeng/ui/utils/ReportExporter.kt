@@ -39,12 +39,12 @@ object ReportExporter {
 
     private const val WIDTH = 1080
     private const val PADDING = 64f
-    private const val BG = 0xFFFFFFFF.toInt()
-    private const val TITLE_COLOR = 0xFF1F2937.toInt()
-    private const val SUBTITLE_COLOR = 0xFF6B7280.toInt()
-    private const val ACCENT = 0xFFEF4444.toInt()
-    private const val INCOME_COLOR = 0xFF10B981.toInt()
-    private const val CARD_BG = 0xFFF8FAFC.toInt()
+    private val BG = 0xFFFFFFFF.toInt()
+    private val TITLE_COLOR = 0xFF1F2937.toInt()
+    private val SUBTITLE_COLOR = 0xFF6B7280.toInt()
+    private val ACCENT = 0xFFEF4444.toInt()
+    private val INCOME_COLOR = 0xFF10B981.toInt()
+    private val CARD_BG = 0xFFF8FAFC.toInt()
 
     fun shareLongImage(context: Context, data: ReportExportData): Boolean {
         return try {

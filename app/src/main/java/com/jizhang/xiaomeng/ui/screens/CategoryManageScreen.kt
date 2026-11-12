@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.livedata.observeAsState
 import com.jizhang.xiaomeng.data.model.Category
 import com.jizhang.xiaomeng.data.model.TransactionType
+import com.jizhang.xiaomeng.ui.utils.CategoryTemplates
 import com.jizhang.xiaomeng.ui.utils.IconMapper
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
 
@@ -61,6 +63,8 @@ fun CategoryManageScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
+    var showTemplatesDialog by remember { mutableStateOf(false) }
+    var importedTemplateName by remember { mutableStateOf<String?>(null) }
 
     val expenseCategories = viewModel.getCategoriesByType(TransactionType.EXPENSE).observeAsState(initial = emptyList())
     val incomeCategories = viewModel.getCategoriesByType(TransactionType.INCOME).observeAsState(initial = emptyList())
@@ -77,6 +81,9 @@ fun CategoryManageScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showTemplatesDialog = true }) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = "场景模板")
+                    }
                     IconButton(onClick = {
                         editingCategory = null
                         showAddDialog = true
@@ -195,6 +202,78 @@ fun CategoryManageScreen(
                 TextButton(onClick = { showAddDialog = false }) {
                     Text("取消")
                 }
+            }
+        )
+    }
+
+    if (showTemplatesDialog) {
+        AlertDialog(
+            onDismissRequest = { showTemplatesDialog = false },
+            title = { Text("场景账本模板") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "一键导入整套分类，已有的同名分类会自动跳过。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    CategoryTemplates.all.forEach { template ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val existing = (expenseCategories.value + incomeCategories.value)
+                                        .map { it.name }
+                                    val toInsert = template.categories.filter { it.name !in existing }
+                                    toInsert.forEach { viewModel.insertCategory(it) }
+                                    showTemplatesDialog = false
+                                    importedTemplateName =
+                                        "${template.title}：新增 ${toInsert.size} 个分类" +
+                                                if (toInsert.size < template.categories.size)
+                                                    "（跳过 ${template.categories.size - toInsert.size} 个已有分类）"
+                                                else ""
+                                },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(template.emoji, fontSize = 24.sp)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = template.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = template.description,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text("导入", color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTemplatesDialog = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    if (importedTemplateName != null) {
+        AlertDialog(
+            onDismissRequest = { importedTemplateName = null },
+            title = { Text("导入完成") },
+            text = { Text(importedTemplateName!!) },
+            confirmButton = {
+                TextButton(onClick = { importedTemplateName = null }) { Text("好的") }
             }
         )
     }

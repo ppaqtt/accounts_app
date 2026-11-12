@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,11 +56,14 @@ import androidx.navigation.NavController
 import com.jizhang.xiaomeng.data.model.Category
 import com.jizhang.xiaomeng.data.model.Transaction
 import com.jizhang.xiaomeng.data.model.TransactionType
+import com.jizhang.xiaomeng.ui.utils.CurrencyUtils
 import com.jizhang.xiaomeng.ui.utils.DateUtils
+import com.jizhang.xiaomeng.ui.utils.ExchangeRateService
 import com.jizhang.xiaomeng.ui.utils.IconMapper
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,9 +74,31 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
     var note by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableLongStateOf(-1L) }
     var selectedDate by remember { mutableStateOf(Date()) }
+    var selectedCurrency by remember { mutableStateOf(CurrencyUtils.CNY) }
+    var rates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var rateLoading by remember { mutableStateOf(false) }
+    var rateError by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
+
+    // 非人民币时按 ECB 参考汇率换算
+    LaunchedEffect(selectedCurrency.code) {
+        val code = selectedCurrency.code
+        if (code == "CNY" || rates.containsKey(code)) return@LaunchedEffect
+        rateLoading = true
+        rateError = false
+        val result = ExchangeRateService.fetchRates()
+        rateLoading = false
+        if (result == null) {
+            rateError = true
+        } else {
+            rates = rates + result
+        }
+    }
+
+    val rate = if (selectedCurrency.code == "CNY") 1.0 else rates[selectedCurrency.code] ?: 0.0
+    val cnyAmount = if (rate > 0) amount / rate else 0.0
 
     val categories = viewModel.getCategoriesByType(selectedType)
         .observeAsState(initial = emptyList())
@@ -134,12 +161,22 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
 
     fun saveTransaction() {
         if (amount <= 0 || selectedCategoryId == -1L) return
+        if (selectedCurrency.code != "CNY" && rate <= 0) return
+
+        val isForeign = selectedCurrency.code != "CNY"
+        val finalAmount = if (isForeign) cnyAmount else amount
+        val finalNote = if (isForeign) {
+            val original = "${selectedCurrency.code} ${String.format(Locale.CHINA, "%.2f", amount)}"
+            if (note.isBlank()) "原币 $original" else "$note（原币 $original）"
+        } else {
+            note
+        }
 
         val transaction = Transaction(
-            amount = amount,
+            amount = finalAmount,
             type = selectedType,
             categoryId = selectedCategoryId,
-            note = note,
+            note = finalNote,
             date = selectedDate
         )
         viewModel.insertTransaction(transaction)
@@ -220,13 +257,57 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "¥${String.format("%.2f", amount)}",
+                    text = "${selectedCurrency.symbol}${String.format(Locale.CHINA, "%.2f", amount)}",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (selectedType == TransactionType.INCOME)
                         Color(0xFF4CAF50)
                     else
                         Color(0xFFF44336)
+                )
+                if (selectedCurrency.code != "CNY") {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    when {
+                        rateLoading -> Text(
+                            text = "正在获取 ${selectedCurrency.code} 汇率…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        rateError -> Text(
+                            text = "汇率获取失败，请检查网络后重试",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        rate > 0 -> Text(
+                            text = "≈ ¥${String.format(Locale.CHINA, "%.2f", cnyAmount)}　1 CNY ≈ ${String.format(Locale.CHINA, "%.4f", rate)} ${selectedCurrency.code}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 币种选择（海淘 / 出境）
+        Text(
+            text = "币种",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            lazyRowItems(CurrencyUtils.supported, key = { it.code }) { currency ->
+                FilterChip(
+                    selected = selectedCurrency.code == currency.code,
+                    onClick = {
+                        selectedCurrency = currency
+                        rateError = false
+                    },
+                    label = { Text("${currency.symbol} ${currency.code}") }
                 )
             }
         }
@@ -312,7 +393,8 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
-            enabled = amount > 0 && selectedCategoryId != -1L
+            enabled = amount > 0 && selectedCategoryId != -1L &&
+                    (selectedCurrency.code == "CNY" || rate > 0)
         ) {
             Icon(Icons.Filled.Check, contentDescription = null)
             Spacer(modifier = Modifier.size(8.dp))
