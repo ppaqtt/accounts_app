@@ -335,6 +335,30 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                 )
                 HorizontalDivider()
 
+                // 收支报告
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.AutoGraph, contentDescription = null, tint = Color(0xFF3F51B5))
+                    },
+                    headlineContent = { Text("收支报告") },
+                    supportingContent = { Text("消费热力图、月度对比与分类 Top5") },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("report") }
+                )
+                HorizontalDivider()
+
+                // 固定支出
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.Refresh, contentDescription = null, tint = Color(0xFFFF9800))
+                    },
+                    headlineContent = { Text("固定支出") },
+                    supportingContent = { Text("会员、房租、还款周期提醒") },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("recurring_transactions") }
+                )
+                HorizontalDivider()
+
                 // 设置
                 ListItem(
                     leadingContent = {

@@ -18,6 +18,11 @@ import com.jizhang.xiaomeng.data.model.RecurringTransaction
 import com.jizhang.xiaomeng.data.model.TransactionType
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.livedata.observeAsState
+import com.jizhang.xiaomeng.data.model.Category
+import com.jizhang.xiaomeng.ui.utils.IconMapper
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
