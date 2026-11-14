@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -34,6 +35,7 @@ object IconMapper {
         "card_giftcard" to Icons.Filled.CardGiftcard,
         "trending_up" to Icons.AutoMirrored.Filled.TrendingUp,
         "work" to Icons.Filled.Work,
+        "swap_horiz" to Icons.Filled.SwapHoriz,
         "add" to Icons.Filled.Add
     )
 

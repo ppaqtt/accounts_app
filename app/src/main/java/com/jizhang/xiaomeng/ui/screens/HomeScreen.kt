@@ -643,10 +643,11 @@ fun TransactionItem(
                 shape = CircleShape,
                 modifier = Modifier.size(40.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (transaction.type == TransactionType.INCOME)
-                        Color(0xFFE8F5E9)
-                    else
-                        Color(0xFFFFEBEE)
+                    containerColor = when (transaction.type) {
+                        TransactionType.INCOME -> Color(0xFFE8F5E9)
+                        TransactionType.TRANSFER -> Color(0xFFE3F2FD)
+                        TransactionType.EXPENSE -> Color(0xFFFFEBEE)
+                    }
                 )
             ) {
                 Box(
@@ -654,12 +655,15 @@ fun TransactionItem(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = IconMapper.getIcon(category?.icon ?: "more_horiz"),
+                        imageVector = IconMapper.getIcon(
+                            if (transaction.type == TransactionType.TRANSFER) "swap_horiz" else category?.icon ?: "more_horiz"
+                        ),
                         contentDescription = category?.name,
-                        tint = if (transaction.type == TransactionType.INCOME)
-                            Color(0xFF4CAF50)
-                        else
-                            Color(0xFFF44336),
+                        tint = when (transaction.type) {
+                            TransactionType.INCOME -> Color(0xFF4CAF50)
+                            TransactionType.TRANSFER -> Color(0xFF2196F3)
+                            TransactionType.EXPENSE -> Color(0xFFF44336)
+                        },
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -668,7 +672,7 @@ fun TransactionItem(
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = category?.name ?: "未知分类",
+                text = if (transaction.type == TransactionType.TRANSFER) "账户转账" else category?.name ?: "未知分类",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
@@ -703,14 +707,18 @@ fun TransactionItem(
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = (if (transaction.type == TransactionType.INCOME) "+" else "-") +
-                    "¥${String.format("%.2f", transaction.amount)}",
+            text = when (transaction.type) {
+                TransactionType.INCOME -> "+"
+                TransactionType.TRANSFER -> "⇄"
+                TransactionType.EXPENSE -> "-"
+            } + "¥${String.format("%.2f", transaction.amount)}",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = if (transaction.type == TransactionType.INCOME)
-                Color(0xFF4CAF50)
-            else
-                Color(0xFFF44336)
+            color = when (transaction.type) {
+                TransactionType.INCOME -> Color(0xFF4CAF50)
+                TransactionType.TRANSFER -> Color(0xFF2196F3)
+                TransactionType.EXPENSE -> Color(0xFFF44336)
+            }
         )
     }
 }

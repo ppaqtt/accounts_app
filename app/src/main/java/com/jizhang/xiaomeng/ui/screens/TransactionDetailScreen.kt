@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jizhang.xiaomeng.data.model.Transaction
+import com.jizhang.xiaomeng.data.model.TransactionType
+import com.jizhang.xiaomeng.data.model.displayName
 import com.jizhang.xiaomeng.viewmodel.TransactionViewModel
 import androidx.navigation.NavController
 import java.text.SimpleDateFormat
@@ -37,10 +39,15 @@ fun TransactionDetailScreen(
         transaction = tx
         if (tx != null) {
             noteText = tx.note
-            val cat = viewModel.getCategoryById(tx.categoryId)
-            if (cat != null) {
-                categoryName = cat.name
-                categoryIcon = cat.icon
+            if (tx.type == TransactionType.TRANSFER) {
+                categoryName = "账户转账"
+                categoryIcon = "swap_horiz"
+            } else {
+                val cat = viewModel.getCategoryById(tx.categoryId)
+                if (cat != null) {
+                    categoryName = cat.name
+                    categoryIcon = cat.icon
+                }
             }
         }
     }
@@ -107,12 +114,13 @@ fun TransactionDetailScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (tx.type == com.jizhang.xiaomeng.data.model.TransactionType.EXPENSE) "支出" else "收入",
+                            text = tx.type.displayName,
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (tx.type == com.jizhang.xiaomeng.data.model.TransactionType.EXPENSE)
-                                Color(0xFFF44336)
-                            else
-                                Color(0xFF4CAF50)
+                            color = when (tx.type) {
+                                com.jizhang.xiaomeng.data.model.TransactionType.EXPENSE -> Color(0xFFF44336)
+                                com.jizhang.xiaomeng.data.model.TransactionType.INCOME -> Color(0xFF4CAF50)
+                                com.jizhang.xiaomeng.data.model.TransactionType.TRANSFER -> Color(0xFF2196F3)
+                            }
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -184,13 +192,14 @@ fun TransactionDetailScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = if (tx.type == com.jizhang.xiaomeng.data.model.TransactionType.EXPENSE) "支出" else "收入",
+                                text = tx.type.displayName,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
-                                color = if (tx.type == com.jizhang.xiaomeng.data.model.TransactionType.EXPENSE)
-                                    Color(0xFFF44336)
-                                else
-                                    Color(0xFF4CAF50)
+                                color = when (tx.type) {
+                                    com.jizhang.xiaomeng.data.model.TransactionType.EXPENSE -> Color(0xFFF44336)
+                                    com.jizhang.xiaomeng.data.model.TransactionType.INCOME -> Color(0xFF4CAF50)
+                                    com.jizhang.xiaomeng.data.model.TransactionType.TRANSFER -> Color(0xFF2196F3)
+                                }
                             )
                         }
                     }

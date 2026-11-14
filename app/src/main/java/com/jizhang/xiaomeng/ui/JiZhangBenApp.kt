@@ -21,7 +21,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.jizhang.xiaomeng.ui.screens.AccountScreen
 import com.jizhang.xiaomeng.ui.screens.AddTransactionScreen
+import com.jizhang.xiaomeng.ui.screens.AnnualReportScreen
 import com.jizhang.xiaomeng.ui.screens.CategoryBudgetScreen
 import com.jizhang.xiaomeng.ui.screens.CategoryManageScreen
 import com.jizhang.xiaomeng.ui.screens.HomeScreen
@@ -120,6 +122,18 @@ fun JiZhangBenApp(viewModel: TransactionViewModel) {
             }
             composable("report") {
                 ReportScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("annual_report") {
+                AnnualReportScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("accounts") {
+                AccountScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() }
                 )

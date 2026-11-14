@@ -63,21 +63,14 @@ object CsvUtils {
 
         val format = detectCsvFormat(lines)
 
-        var isFirstLine = true
         for (line in lines) {
-            val currentLine = line
-            if (currentLine.isBlank()) continue
-
-            if (isFirstLine) {
-                isFirstLine = false
-                if (isHeaderLine(currentLine, format)) {
-                    continue
-                }
-            }
+            if (line.isBlank()) continue
+            // 跳过表头及账单文件中的说明行
+            if (isHeaderLine(line, format)) continue
 
             totalLines++
             try {
-                val transaction = parseLine(currentLine, format, categoryMap)
+                val transaction = parseLine(line, format, categoryMap)
                 if (transaction != null) {
                     transactions.add(transaction)
                     successCount++
@@ -101,29 +94,37 @@ object CsvUtils {
     private fun detectCsvFormat(lines: List<String>): CsvFormat {
         if (lines.isEmpty()) return CsvFormat.CUSTOM
 
-        val firstLine = lines.first()
+        // 账单文件开头常有“微信支付账单明细”等说明行，先找出真正的表头行再判断格式
+        val headerLine = lines.take(20).firstOrNull {
+            it.contains("交易时间") || it.contains("收/支") || it.contains("收支类型") ||
+                    it.contains("category_name") || it.contains("账单明细")
+        } ?: lines.first()
 
-        if (firstLine.contains("交易时间") || firstLine.contains("交易类型") || firstLine.contains("收/支")) {
-            return CsvFormat.ALIPAY
+        return when {
+            // 小萌记账自有格式
+            headerLine.contains("category_name") && headerLine.contains("amount") -> CsvFormat.CUSTOM
+            // 微信账单：支付方式 / 金额(元) / 微信支付，必须先于支付宝判断，
+            // 因为两者都包含“交易时间”“收/支”
+            headerLine.contains("支付方式") || headerLine.contains("金额(元)") ||
+                    headerLine.contains("微信支付") -> CsvFormat.WECHAT
+            // 支付宝账单：收/付款方式 / 交易分类
+            headerLine.contains("收/付款方式") || headerLine.contains("交易分类") ||
+                    headerLine.contains("支付宝") -> CsvFormat.ALIPAY
+            // QQ 钱包账单
+            headerLine.contains("交易金额") || headerLine.contains("QQ") -> CsvFormat.QQ
+            // 旧版支付宝账单兜底
+            headerLine.contains("交易时间") && headerLine.contains("收/支") -> CsvFormat.ALIPAY
+            else -> CsvFormat.CUSTOM
         }
-        if (firstLine.contains("交易时间") || firstLine.contains("收支类型") || firstLine.contains("支付方式")) {
-            return CsvFormat.WECHAT
-        }
-        if (firstLine.contains("交易时间") || firstLine.contains("交易金额") || firstLine.contains("交易状态")) {
-            return CsvFormat.QQ
-        }
-        if (firstLine.contains("type") && firstLine.contains("amount") && firstLine.contains("category_name")) {
-            return CsvFormat.CUSTOM
-        }
-
-        return CsvFormat.CUSTOM
     }
 
     private fun isHeaderLine(line: String, format: CsvFormat): Boolean {
         return when (format) {
             CsvFormat.CUSTOM -> line.contains("type") && line.contains("amount")
-            CsvFormat.ALIPAY -> line.contains("交易时间") || line.contains("交易号")
-            CsvFormat.WECHAT -> line.contains("交易时间") || line.contains("收支类型")
+            CsvFormat.ALIPAY -> line.contains("交易时间") || line.contains("交易号") ||
+                    line.contains("支付宝交易记录")
+            CsvFormat.WECHAT -> line.contains("交易时间") || line.contains("收支类型") ||
+                    line.contains("账单明细")
             CsvFormat.QQ -> line.contains("交易时间") || line.contains("交易金额")
         }
     }

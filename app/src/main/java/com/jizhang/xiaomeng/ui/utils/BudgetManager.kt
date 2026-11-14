@@ -26,6 +26,14 @@ class BudgetManager(context: Context) {
         val isOverBudget = expense > monthlyBudget
         return Pair(progress, isOverBudget)
     }
+
+    fun getCategoryBudget(categoryId: Long): Double {
+        return prefs.getFloat("category_budget_$categoryId", 0f).toDouble()
+    }
+
+    fun setCategoryBudget(categoryId: Long, amount: Double) {
+        prefs.edit().putFloat("category_budget_$categoryId", amount.toFloat()).apply()
+    }
 }
 
 val LocalBudgetManager = compositionLocalOf<BudgetManager> {

@@ -6,10 +6,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.jizhang.xiaomeng.JiZhangBenApplication
+import com.jizhang.xiaomeng.data.model.Account
 import com.jizhang.xiaomeng.data.model.Category
 import com.jizhang.xiaomeng.data.model.RecurringTransaction
 import com.jizhang.xiaomeng.data.model.Transaction
 import com.jizhang.xiaomeng.data.model.TransactionType
+import com.jizhang.xiaomeng.data.repository.AccountRepository
 import com.jizhang.xiaomeng.data.repository.CategoryRepository
 import com.jizhang.xiaomeng.data.repository.RecurringTransactionRepository
 import com.jizhang.xiaomeng.data.repository.TransactionRepository
@@ -29,10 +31,12 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
     private val transactionRepository: TransactionRepository
     private val categoryRepository: CategoryRepository
     private val recurringTransactionRepository: RecurringTransactionRepository
+    private val accountRepository: AccountRepository
 
     val allTransactions: Flow<List<Transaction>>
     val allCategories: Flow<List<Category>>
     val allRecurringTransactions: Flow<List<RecurringTransaction>>
+    val allAccounts: Flow<List<Account>>
 
     private val calendar = Calendar.getInstance()
     val currentYear = calendar.get(Calendar.YEAR)
@@ -43,9 +47,11 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
         transactionRepository = app.transactionRepository
         categoryRepository = app.categoryRepository
         recurringTransactionRepository = app.recurringTransactionRepository
+        accountRepository = app.accountRepository
         allTransactions = transactionRepository.allTransactions
         allCategories = categoryRepository.allCategories
         allRecurringTransactions = recurringTransactionRepository.allRecurringTransactions
+        allAccounts = accountRepository.allAccounts
     }
 
     fun getCategoriesByType(type: TransactionType): LiveData<List<Category>> {
@@ -150,5 +156,18 @@ class TransactionViewModel(application: Application) : AndroidViewModel(applicat
 
     fun deleteRecurringTransaction(transaction: RecurringTransaction) = viewModelScope.launch {
         recurringTransactionRepository.delete(transaction)
+    }
+
+    // 账户
+    fun insertAccount(account: Account) = viewModelScope.launch {
+        accountRepository.insertAccount(account)
+    }
+
+    fun updateAccount(account: Account) = viewModelScope.launch {
+        accountRepository.updateAccount(account)
+    }
+
+    fun deleteAccount(account: Account) = viewModelScope.launch {
+        accountRepository.deleteAccount(account)
     }
 }

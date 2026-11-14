@@ -2,6 +2,7 @@ package com.jizhang.xiaomeng.ui.screens
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,7 +51,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.jizhang.xiaomeng.data.model.Account
 import com.jizhang.xiaomeng.data.model.Category
 import com.jizhang.xiaomeng.data.model.Transaction
 import com.jizhang.xiaomeng.data.model.TransactionType
@@ -69,12 +72,31 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
     var note by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableLongStateOf(-1L) }
     var selectedDate by remember { mutableStateOf(Date()) }
+    var selectedAccountId by remember { mutableLongStateOf(0L) }
+    var selectedToAccountId by remember { mutableLongStateOf(0L) }
 
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
+    val accounts = viewModel.allAccounts.collectAsStateWithLifecycle(initialValue = emptyList())
+    val allCategories = viewModel.allCategories.collectAsStateWithLifecycle(initialValue = emptyList())
+
     val categories = viewModel.getCategoriesByType(selectedType)
         .observeAsState(initial = emptyList())
+
+    LaunchedEffect(accounts.value) {
+        if (accounts.value.isNotEmpty()) {
+            if (accounts.value.none { it.id == selectedAccountId }) {
+                selectedAccountId = accounts.value.first().id
+            }
+            if (accounts.value.none { it.id == selectedToAccountId } ||
+                selectedToAccountId == selectedAccountId
+            ) {
+                selectedToAccountId = accounts.value.firstOrNull { it.id != selectedAccountId }?.id
+                    ?: accounts.value.first().id
+            }
+        }
+    }
 
     // 统一处理分类选择：当分类列表变化或切换类型时，自动选中第一个分类
     LaunchedEffect(categories.value, selectedType) {
@@ -133,22 +155,47 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
     }
 
     fun saveTransaction() {
-        if (amount <= 0 || selectedCategoryId == -1L) return
+        if (amount <= 0) return
 
-        val transaction = Transaction(
-            amount = amount,
-            type = selectedType,
-            categoryId = selectedCategoryId,
-            note = note,
-            date = selectedDate
-        )
-        viewModel.insertTransaction(transaction)
+        if (selectedType == TransactionType.TRANSFER) {
+            val fallbackCategoryId = allCategories.value
+                .firstOrNull { it.type == TransactionType.EXPENSE }?.id ?: -1L
+            if (fallbackCategoryId == -1L || selectedAccountId == 0L ||
+                selectedToAccountId == 0L || selectedAccountId == selectedToAccountId
+            ) {
+                return
+            }
+            viewModel.insertTransaction(
+                Transaction(
+                    amount = amount,
+                    type = TransactionType.TRANSFER,
+                    categoryId = fallbackCategoryId,
+                    accountId = selectedAccountId,
+                    toAccountId = selectedToAccountId,
+                    note = note.ifEmpty { "账户转账" },
+                    date = selectedDate
+                )
+            )
+        } else {
+            if (selectedCategoryId == -1L) return
+            viewModel.insertTransaction(
+                Transaction(
+                    amount = amount,
+                    type = selectedType,
+                    categoryId = selectedCategoryId,
+                    accountId = selectedAccountId,
+                    note = note,
+                    date = selectedDate
+                )
+            )
+        }
 
         // 重置表单
         amountText = "0"
         amount = 0.0
         note = ""
         selectedCategoryId = categories.value.firstOrNull()?.id ?: -1L
+        selectedType = TransactionType.EXPENSE
         navController.navigate("home") {
             popUpTo("home") { inclusive = true }
         }
@@ -170,7 +217,7 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 支出/收入切换
+        // 支出/收入/转账切换
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -193,6 +240,21 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = Color(0xFFE8F5E9),
                     selectedLabelColor = Color(0xFF4CAF50)
+                )
+            )
+            FilterChip(
+                selected = selectedType == TransactionType.TRANSFER,
+                onClick = {
+                    selectedType = TransactionType.TRANSFER
+                    if (selectedToAccountId == selectedAccountId) {
+                        selectedToAccountId = accounts.value.firstOrNull { it.id != selectedAccountId }?.id ?: 0L
+                    }
+                },
+                label = { Text("转账") },
+                modifier = Modifier.weight(1f),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFE3F2FD),
+                    selectedLabelColor = Color(0xFF2196F3)
                 )
             )
         }
@@ -223,39 +285,93 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
                     text = "¥${String.format("%.2f", amount)}",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (selectedType == TransactionType.INCOME)
-                        Color(0xFF4CAF50)
-                    else
-                        Color(0xFFF44336)
+                    color = when (selectedType) {
+                        TransactionType.INCOME -> Color(0xFF4CAF50)
+                        TransactionType.TRANSFER -> Color(0xFF2196F3)
+                        TransactionType.EXPENSE -> Color(0xFFF44336)
+                    }
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 分类选择
-        Text(
-            text = "选择分类",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
+        if (selectedType == TransactionType.TRANSFER) {
+            // 转账：选择转出/转入账户
+            Text(
+                text = "转出账户",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            AccountChips(
+                accounts = accounts.value,
+                selectedId = selectedAccountId,
+                onSelect = { id ->
+                    selectedAccountId = id
+                    if (selectedToAccountId == id) {
+                        selectedToAccountId = accounts.value.firstOrNull { it.id != id }?.id ?: 0L
+                    }
+                }
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(5),
-            modifier = Modifier.height(120.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(categories.value) { category ->
-                CategoryItem(
-                    category = category,
-                    isSelected = selectedCategoryId == category.id,
-                    type = selectedType,
-                    onClick = { selectedCategoryId = category.id }
-                )
+            Text(
+                text = "转入账户",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            AccountChips(
+                accounts = accounts.value,
+                selectedId = selectedToAccountId,
+                onSelect = { id ->
+                    selectedToAccountId = id
+                    if (selectedAccountId == id) {
+                        selectedAccountId = accounts.value.firstOrNull { it.id != id }?.id ?: 0L
+                    }
+                }
+            )
+        } else {
+            // 分类选择
+            Text(
+                text = "选择分类",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(5),
+                modifier = Modifier.height(120.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(categories.value) { category ->
+                    CategoryItem(
+                        category = category,
+                        isSelected = selectedCategoryId == category.id,
+                        type = selectedType,
+                        onClick = { selectedCategoryId = category.id }
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "账户",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            AccountChips(
+                accounts = accounts.value,
+                selectedId = selectedAccountId,
+                onSelect = { selectedAccountId = it }
+            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -306,13 +422,20 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
         Spacer(modifier = Modifier.height(12.dp))
 
         // 保存按钮 - 始终显示在底部
+        val canSave = amount > 0 && if (selectedType == TransactionType.TRANSFER) {
+            selectedAccountId != 0L && selectedToAccountId != 0L &&
+                    selectedAccountId != selectedToAccountId &&
+                    allCategories.value.any { it.type == TransactionType.EXPENSE }
+        } else {
+            selectedCategoryId != -1L
+        }
         Button(
             onClick = ::saveTransaction,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
-            enabled = amount > 0 && selectedCategoryId != -1L
+            enabled = canSave
         ) {
             Icon(Icons.Filled.Check, contentDescription = null)
             Spacer(modifier = Modifier.size(8.dp))
@@ -320,6 +443,36 @@ fun AddTransactionScreen(viewModel: TransactionViewModel, navController: NavCont
                 text = "保存",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun AccountChips(
+    accounts: List<Account>,
+    selectedId: Long,
+    onSelect: (Long) -> Unit
+) {
+    if (accounts.isEmpty()) {
+        Text(
+            text = "暂无账户，可在「我的 - 账户与资产」中添加",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        accounts.forEach { account ->
+            FilterChip(
+                selected = selectedId == account.id,
+                onClick = { onSelect(account.id) },
+                label = { Text(account.name) }
             )
         }
     }

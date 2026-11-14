@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AutoGraph
 import androidx.compose.material.icons.filled.Security
@@ -147,10 +148,26 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
 
     // 统计数据
     val allTransactions = viewModel.allTransactions.collectAsStateWithLifecycle(initialValue = emptyList())
+    val allAccounts = viewModel.allAccounts.collectAsStateWithLifecycle(initialValue = emptyList())
     val totalCount = allTransactions.value.size
     val totalIncome = allTransactions.value.filter { it.type.name == "INCOME" }.sumOf { it.amount }
     val totalExpense = allTransactions.value.filter { it.type.name == "EXPENSE" }.sumOf { it.amount }
     val totalBalance = totalIncome - totalExpense
+
+    val netAssets = allAccounts.value.sumOf { account ->
+        account.initialBalance + allTransactions.value.sumOf { tx ->
+            when (tx.type.name) {
+                "INCOME" -> if (tx.accountId == account.id) tx.amount else 0.0
+                "EXPENSE" -> if (tx.accountId == account.id) -tx.amount else 0.0
+                "TRANSFER" -> {
+                    val incoming = if (tx.toAccountId == account.id) tx.amount else 0.0
+                    val outgoing = if (tx.accountId == account.id) tx.amount else 0.0
+                    incoming - outgoing
+                }
+                else -> 0.0
+            }
+        }
+    }
 
     // 计算记账天数
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -332,6 +349,68 @@ fun ProfileScreen(viewModel: TransactionViewModel, navController: NavController)
                     supportingContent = { Text("支持小萌记账、微信、QQ、支付宝") },
                     trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable { startImport() }
+                )
+                HorizontalDivider()
+
+                // 收支报告
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.AutoGraph, contentDescription = null, tint = Color(0xFF4CAF50))
+                    },
+                    headlineContent = { Text("收支报告") },
+                    supportingContent = { Text("周报 / 月报，支持分享") },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("report") }
+                )
+                HorizontalDivider()
+
+                // 年度账单
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.DateRange, contentDescription = null, tint = Color(0xFFFF9800))
+                    },
+                    headlineContent = { Text("年度账单") },
+                    supportingContent = { Text("12 个月汇总、Top 分类、消费日历") },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("annual_report") }
+                )
+                HorizontalDivider()
+
+                // 分类预算
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null, tint = Color(0xFF9C27B0))
+                    },
+                    headlineContent = { Text("分类预算") },
+                    supportingContent = { Text("按分类设置月度预算并查看进度") },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("category_budget") }
+                )
+                HorizontalDivider()
+
+                // 周期性账单
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.Refresh, contentDescription = null, tint = Color(0xFF00BCD4))
+                    },
+                    headlineContent = { Text("周期性账单") },
+                    supportingContent = { Text("房租、订阅、工资等固定流水") },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("recurring_transactions") }
+                )
+                HorizontalDivider()
+
+                // 账户与资产
+                ListItem(
+                    leadingContent = {
+                        Icon(Icons.Filled.AccountBalance, contentDescription = null, tint = Color(0xFF607D8B))
+                    },
+                    headlineContent = { Text("账户与资产") },
+                    supportingContent = {
+                        Text("净资产 ¥${String.format("%.2f", netAssets)} · 现金 / 银行卡 / 支付宝 / 微信")
+                    },
+                    trailingContent = { Text("›", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.clickable { navController.navigate("accounts") }
                 )
                 HorizontalDivider()
 

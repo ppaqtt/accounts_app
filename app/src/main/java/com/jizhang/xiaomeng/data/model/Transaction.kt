@@ -23,6 +23,8 @@ data class Transaction(
     val amount: Double,
     val type: TransactionType,
     val categoryId: Long,
+    val accountId: Long = 0, // 资金转出账户，0 表示未指定
+    val toAccountId: Long = 0, // 转账时的转入账户
     val note: String = "",
     val tags: String = "", // 逗号分隔的标签，如 "工作,餐饮"
     val date: Date,
